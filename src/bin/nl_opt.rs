@@ -134,7 +134,7 @@ impl Pass for ReportSccs {
 
 pub struct ReportDepth;
 
-impl Pass for ReportDepth{
+impl Pass for ReportDepth {
     type I = PrimitiveCell;
     fn run(&self, netlist: &Rc<Netlist<Self::I>>) -> Result<String, Error> {
         let analysis = netlist.get_analysis::<SimpleCombDepth<_>>()?;
