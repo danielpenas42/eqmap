@@ -4,7 +4,7 @@ use eqmap::pass::{Error, Pass, PrintVerilog};
 use eqmap::register_passes;
 use eqmap::verilog::sv_parse_wrapper;
 use nl_compiler::{from_vast, from_vast_overrides};
-use safety_net::{Identifier, Instantiable, MultiDiGraph, Netlist, format_id};
+use safety_net::{Identifier, Instantiable, MultiDiGraph, Netlist, SimpleCombDepth, format_id};
 use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -130,8 +130,24 @@ impl Pass for ReportSccs {
     }
 }
 
+// Report the longest  path in the netlist
+
+pub struct ReportDepth;
+
+impl Pass for ReportDepth{
+    type I = PrimitiveCell;
+    fn run(&self, netlist: &Rc<Netlist<Self::I>>) -> Result<String, Error> {
+        let analysis = netlist.get_analysis::<SimpleCombDepth<_>>()?;
+        match analysis.get_max_depth() {
+            Some(depth) => Ok(format!("Maximum combinational depth: {depth}")),
+            None => Ok("Maximum combinational depth: undefined".to_string()),
+        }
+    }
+}
+
 register_passes!(PrimitiveCell; PrintVerilog, DotGraph, Clean, DisconnectRegisters,
-                                DisconnectArcSet, MarkArcSet, RenameNets, ReportSccs);
+                                DisconnectArcSet, MarkArcSet, RenameNets, ReportSccs,
+                                ReportDepth);
 
 /// Netlist optimization debugging tool
 #[derive(Parser, Debug)]
