@@ -7,10 +7,11 @@
 use crate::asic::CellLang;
 use crate::driver::CircuitLang;
 use crate::lut::LutLang;
+use crate::timing::{expand_n_nodes, get_critical_path};
 use bitvec::field::BitField;
 use egg::{Id, RecExpr, Symbol};
 use nl_compiler::FromId;
-use safety_net::graph::MultiDiGraph;
+use safety_net::graph::{CombDepthInfo, MultiDiGraph};
 use safety_net::{
     Analysis, DrivenNet, Error, Identifier, Instantiable, Logic, Net, Netlist, Parameter,
     format_id, iter::NetDFSIterator,
@@ -344,6 +345,30 @@ impl<'a, L: CircuitLang, I: Instantiable + LogicFunc<L>> LogicMapper<'a, L, I> {
     /// Get the mapped expressions
     pub fn mappings(self) -> Vec<LogicMapping<L, I>> {
         self.mappings
+    }
+}
+
+impl<'a, L: CircuitLang> LogicMapper<'a, L, PrimitiveCell>
+where
+    PrimitiveCell: LogicFunc<L>,
+{
+    /// Map the critical path and a bounded amount of its fan-in cone.
+    pub fn insert_delay_paths(&mut self, expansion: usize) -> Result<RecExpr<L>, String> {
+        let analysis = self
+            ._netlist
+            .get_analysis::<CombDepthInfo<_>>()
+            .map_err(|e| e.to_string())?;
+        let critical_path =
+            get_critical_path(&analysis).ok_or_else(|| "Critical path is empty".to_string())?;
+        let endpoint = critical_path.endpoint();
+        let expanded_nodes = expand_n_nodes(critical_path, expansion);
+        let roots = vec![DrivenNet::from(&endpoint)];
+
+        self.insert_filtered(
+            roots,
+            move |d| expanded_nodes.contains(&d.clone().unwrap()),
+            |_| true,
+        )
     }
 }
 

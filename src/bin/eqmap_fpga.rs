@@ -290,7 +290,11 @@ fn main() -> std::io::Result<()> {
         PartitionMethod::ArcSet => {
             mapper.insert_partitioned().map_err(std::io::Error::other)?;
         }
-        PartitionMethod::DelayPaths => todo!("Implement delay-based partitioning"),
+        PartitionMethod::DelayPaths => {
+            mapper
+                .insert_delay_paths(2)
+                .map_err(std::io::Error::other)?;
+        }
     }
 
     let mut mapping = mapper.mappings();
