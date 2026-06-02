@@ -7,7 +7,7 @@
 use crate::asic::CellLang;
 use crate::driver::CircuitLang;
 use crate::lut::LutLang;
-use crate::timing::{expand_n_nodes, get_critical_path};
+use crate::timing::{expand_n_nodes, get_critical_paths};
 use bitvec::field::BitField;
 use egg::{Id, RecExpr, Symbol};
 use nl_compiler::FromId;
@@ -130,8 +130,7 @@ where
         })
     }
 }
-
-impl<'a, L: CircuitLang, I: Instantiable + LogicFunc<L>> LogicMapper<'a, L, I> {
+impl<'a, L: CircuitLang, I: Instantiable + LogicFunc<L> + 'static> LogicMapper<'a, L, I> {
     /// Map `nets` to [CircuitLang] nodes. `nets` that do not pass `filter_netref` *and* `filter_inst` become leaves.
     fn insert_filtered<F, G>(
         &mut self,
@@ -346,20 +345,17 @@ impl<'a, L: CircuitLang, I: Instantiable + LogicFunc<L>> LogicMapper<'a, L, I> {
     pub fn mappings(self) -> Vec<LogicMapping<L, I>> {
         self.mappings
     }
-}
 
-impl<'a, L: CircuitLang> LogicMapper<'a, L, PrimitiveCell>
-where
-    PrimitiveCell: LogicFunc<L>,
-{
-    /// Map the critical path and a bounded amount of its fan-in cone.
+    /// Maps a critical delay path plus a bounded amount of surrounding fan-in logic.
     pub fn insert_delay_paths(&mut self, expansion: usize) -> Result<RecExpr<L>, String> {
         let analysis = self
             ._netlist
             .get_analysis::<CombDepthInfo<_>>()
             .map_err(|e| e.to_string())?;
-        let critical_path =
-            get_critical_path(&analysis).ok_or_else(|| "Critical path is empty".to_string())?;
+        let critical_path = get_critical_paths(&analysis, 1)
+            .into_iter()
+            .next()
+            .ok_or_else(|| "Critical path is empty".to_string())?;
         let endpoint = critical_path.endpoint();
         let expanded_nodes = expand_n_nodes(critical_path, expansion);
         let roots = vec![DrivenNet::from(&endpoint)];

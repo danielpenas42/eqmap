@@ -4,48 +4,48 @@
 
 */
 
-use crate::netlist::PrimitiveCell;
+use safety_net::Instantiable;
 use safety_net::NetRef;
 use safety_net::graph::CombDepthInfo;
 use std::collections::HashSet;
 
 #[derive(Debug)]
 /// A representative critical path ending at a timing endpoint.
-pub struct DelayPath {
+pub struct DelayPath<I: Instantiable> {
     /// The path from endpoint backward through critical fan-in.
-    path: Vec<NetRef<PrimitiveCell>>,
+    path: Vec<NetRef<I>>,
 }
 
-impl DelayPath {
+impl<I: Instantiable> DelayPath<I> {
     /// Returns the depth/length of the delay path.
     pub fn depth(&self) -> usize {
         self.path.len()
     }
 
     /// The signal being driven by this path
-    pub fn endpoint(&self) -> NetRef<PrimitiveCell> {
+    pub fn endpoint(&self) -> NetRef<I> {
         self.path[0].clone()
     }
 
     /// The nodes along the delay path as a slice
-    pub fn path(&self) -> &[NetRef<PrimitiveCell>] {
+    pub fn path(&self) -> &[NetRef<I>] {
         &self.path
     }
 }
 
-impl IntoIterator for DelayPath {
-    type Item = NetRef<PrimitiveCell>;
-    type IntoIter = std::vec::IntoIter<NetRef<PrimitiveCell>>;
+impl<I: Instantiable> IntoIterator for DelayPath<I> {
+    type Item = NetRef<I>;
+    type IntoIter = std::vec::IntoIter<NetRef<I>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.path.into_iter()
     }
 }
 
-fn build_path_from_endpoint(
-    analysis: &CombDepthInfo<'_, PrimitiveCell>,
-    endpoint: NetRef<PrimitiveCell>,
-) -> Option<DelayPath> {
+fn build_path_from_endpoint<I: Instantiable>(
+    analysis: &CombDepthInfo<'_, I>,
+    endpoint: NetRef<I>,
+) -> Option<DelayPath<I>> {
     let mut path = Vec::new();
     let mut current = endpoint;
 
@@ -62,15 +62,11 @@ fn build_path_from_endpoint(
     Some(DelayPath { path })
 }
 
-/// Gets one of the top critical paths from the combinational-depth analysis.
-pub fn get_critical_path(analysis: &CombDepthInfo<'_, PrimitiveCell>) -> Option<DelayPath> {
-    analysis.get_max_depth()?;
-    let endpoint = analysis.get_critical_points().into_iter().next()?.clone();
-    build_path_from_endpoint(analysis, endpoint)
-}
-
 /// Gets up to `n` most critical paths.
-pub fn get_critical_paths(analysis: &CombDepthInfo<'_, PrimitiveCell>, n: usize) -> Vec<DelayPath> {
+pub fn get_critical_paths<I: Instantiable>(
+    analysis: &CombDepthInfo<'_, I>,
+    n: usize,
+) -> Vec<DelayPath<I>> {
     if analysis.get_max_depth().is_none() {
         return Vec::new();
     }
@@ -87,9 +83,9 @@ pub fn get_critical_paths(analysis: &CombDepthInfo<'_, PrimitiveCell>, n: usize)
 }
 
 /// Expands a critical path backward through fan-in for `n` frontier steps.
-pub fn expand_n_nodes(path: DelayPath, n: usize) -> HashSet<NetRef<PrimitiveCell>> {
-    let mut frontier: Vec<NetRef<PrimitiveCell>> = path.into_iter().collect();
-    let mut expanded_nodes: HashSet<NetRef<PrimitiveCell>> = frontier.iter().cloned().collect();
+pub fn expand_n_nodes<I: Instantiable>(path: DelayPath<I>, n: usize) -> HashSet<NetRef<I>> {
+    let mut frontier: Vec<NetRef<I>> = path.into_iter().collect();
+    let mut expanded_nodes: HashSet<NetRef<I>> = frontier.iter().cloned().collect();
 
     for _ in 0..n {
         let mut next_frontier = Vec::new();
