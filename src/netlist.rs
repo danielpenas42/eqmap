@@ -7,7 +7,7 @@
 use crate::asic::CellLang;
 use crate::driver::CircuitLang;
 use crate::lut::LutLang;
-use crate::timing::{expand_n_nodes, get_critical_paths};
+use crate::timing::get_critical_paths;
 use bitvec::field::BitField;
 use egg::{Id, RecExpr, Symbol};
 use nl_compiler::FromId;
@@ -347,18 +347,27 @@ impl<'a, L: CircuitLang, I: Instantiable + LogicFunc<L> + 'static> LogicMapper<'
     }
 
     /// Maps a critical delay path plus a bounded amount of surrounding fan-in logic.
-    pub fn insert_delay_paths(&mut self, expansion: usize) -> Result<RecExpr<L>, String> {
+    pub fn insert_delay_paths(
+        &mut self,
+        topk: usize,
+        branch_factor: usize,
+    ) -> Result<RecExpr<L>, String> {
         let analysis = self
             ._netlist
             .get_analysis::<CombDepthInfo<_>>()
             .map_err(|e| e.to_string())?;
-        let critical_path = get_critical_paths(&analysis, 1)
-            .into_iter()
-            .next()
-            .ok_or_else(|| "Critical path is empty".to_string())?;
-        let endpoint = critical_path.endpoint();
-        let expanded_nodes = expand_n_nodes(critical_path, expansion);
-        let roots = vec![DrivenNet::from(&endpoint)];
+        let critical_paths = get_critical_paths(&analysis, topk);
+        if critical_paths.is_empty() {
+            return Err("Critical paths are empty".to_string());
+        }
+        let mut expanded_nodes = HashSet::new();
+        let mut roots = Vec::new();
+
+        for critical_path in &critical_paths {
+            let endpoint = critical_path.endpoint();
+            expanded_nodes.extend(critical_path.expand_n_nodes(branch_factor));
+            roots.push(DrivenNet::from(&endpoint));
+        }
 
         self.insert_filtered(
             roots,

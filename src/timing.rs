@@ -31,6 +31,27 @@ impl<I: Instantiable> DelayPath<I> {
     pub fn path(&self) -> &[NetRef<I>] {
         &self.path
     }
+    /// Expands and collects the transitive fan-in along the critical path provided by a branch factor of n.
+    pub fn expand_n_nodes(&self, n: usize) -> HashSet<NetRef<I>> {
+        let mut frontier: Vec<NetRef<I>> = self.path().to_vec();
+        let mut expanded_nodes: HashSet<NetRef<I>> = frontier.iter().cloned().collect();
+
+        for _ in 0..n {
+            let mut next_frontier = Vec::new();
+
+            for node in frontier {
+                for driver in node.drivers().flatten() {
+                    if expanded_nodes.insert(driver.clone()) {
+                        next_frontier.push(driver);
+                    }
+                }
+            }
+
+            frontier = next_frontier;
+        }
+
+        expanded_nodes
+    }
 }
 
 impl<I: Instantiable> IntoIterator for DelayPath<I> {
@@ -80,26 +101,4 @@ pub fn get_critical_paths<I: Instantiable>(
     }
 
     vec
-}
-
-/// Expands a critical path backward through fan-in for `n` frontier steps.
-pub fn expand_n_nodes<I: Instantiable>(path: DelayPath<I>, n: usize) -> HashSet<NetRef<I>> {
-    let mut frontier: Vec<NetRef<I>> = path.into_iter().collect();
-    let mut expanded_nodes: HashSet<NetRef<I>> = frontier.iter().cloned().collect();
-
-    for _ in 0..n {
-        let mut next_frontier = Vec::new();
-
-        for node in frontier {
-            for driver in node.drivers().flatten() {
-                if expanded_nodes.insert(driver.clone()) {
-                    next_frontier.push(driver);
-                }
-            }
-        }
-
-        frontier = next_frontier;
-    }
-
-    expanded_nodes
 }

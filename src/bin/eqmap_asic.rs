@@ -262,7 +262,7 @@ fn main() -> std::io::Result<()> {
         }
         PartitionMethod::DelayPaths => {
             mapper
-                .insert_delay_paths(2)
+                .insert_delay_paths(1, 2)
                 .map_err(std::io::Error::other)?;
         }
     }

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use eqmap::driver::CircuitLang;
 use eqmap::lut::LutLang;
 use eqmap::netlist::{LogicMapper, PrimitiveCell};
-use eqmap::timing::{expand_n_nodes, get_critical_paths};
+use eqmap::timing::get_critical_paths;
 use safety_net::graph::CombDepthInfo;
 use safety_net::{DrivenNet, NetRef, Netlist};
 use safety_pass::CellType;
@@ -156,11 +156,8 @@ fn expansion_adds_neighboring_fanin_nodes() {
     let analysis = timing_analysis(&netlist);
     let path = get_critical_paths(&analysis, 1).into_iter().next().unwrap();
 
-    let unexpanded = expand_n_nodes(path, 0);
-    let expanded = expand_n_nodes(
-        get_critical_paths(&analysis, 1).into_iter().next().unwrap(),
-        1,
-    );
+    let unexpanded = path.expand_n_nodes(0);
+    let expanded = path.expand_n_nodes(1);
 
     assert!(!unexpanded.contains(&right));
     assert!(expanded.contains(&right));
@@ -217,6 +214,9 @@ fn critical_paths_use_timing_endpoints_not_internal_chain_nodes() {
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
+    // if you run cargo test --test timing -- --nocapture --test-threads=1 u can see that it is printing 3 critical paths
+    // when there should only be one. This is becuase it is identifying as critical ends all the ndoes in the critical path
+    // this is I believe an issue with CombDepthInfo in safety net in the compute method
     eprintln!("debug critical paths: {debug_paths:?}");
 
     assert_eq!(paths.len(), 1);
@@ -271,7 +271,7 @@ fn insert_delay_paths_maps_only_the_critical_region() {
         .get_analysis::<LogicMapper<LutLang, PrimitiveCell>>()
         .unwrap();
 
-    mapper.insert_delay_paths(0).unwrap();
+    mapper.insert_delay_paths(1, 0).unwrap();
 
     let mappings = mapper.mappings();
     assert_eq!(mappings.len(), 1);
