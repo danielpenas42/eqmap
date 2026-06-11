@@ -5,7 +5,7 @@ use eqmap::lut::LutLang;
 use eqmap::netlist::{LogicMapper, PrimitiveCell};
 use eqmap::timing::get_critical_paths;
 use safety_net::graph::CombDepthInfo;
-use safety_net::{DrivenNet, NetRef, Netlist};
+use safety_net::{DrivenNet, Netlist};
 use safety_pass::CellType;
 
 fn and_gate() -> PrimitiveCell {
@@ -32,9 +32,9 @@ fn timing_analysis(
 // d ──┘
 fn reconvergent_netlist() -> (
     Rc<Netlist<PrimitiveCell>>,
-    NetRef<PrimitiveCell>,
-    NetRef<PrimitiveCell>,
-    NetRef<PrimitiveCell>,
+    DrivenNet<PrimitiveCell>,
+    DrivenNet<PrimitiveCell>,
+    DrivenNet<PrimitiveCell>,
 ) {
     let netlist = Netlist::new("reconvergent".to_string());
 
@@ -58,15 +58,20 @@ fn reconvergent_netlist() -> (
         .unwrap();
     root.clone().expose_with_name("y".into());
 
-    (netlist, root, left, right)
+    (
+        netlist,
+        root.get_output(0),
+        left.get_output(0),
+        right.get_output(0),
+    )
 }
 
 struct TwoOutputNetlist {
     netlist: Rc<Netlist<PrimitiveCell>>,
-    first_root: NetRef<PrimitiveCell>,
-    first_leaf: NetRef<PrimitiveCell>,
-    second_root: NetRef<PrimitiveCell>,
-    second_leaf: NetRef<PrimitiveCell>,
+    first_root: DrivenNet<PrimitiveCell>,
+    first_leaf: DrivenNet<PrimitiveCell>,
+    second_root: DrivenNet<PrimitiveCell>,
+    second_leaf: DrivenNet<PrimitiveCell>,
 }
 
 fn two_output_netlist() -> TwoOutputNetlist {
@@ -105,18 +110,18 @@ fn two_output_netlist() -> TwoOutputNetlist {
 
     TwoOutputNetlist {
         netlist,
-        first_root,
-        first_leaf,
-        second_root,
-        second_leaf,
+        first_root: first_root.get_output(0),
+        first_leaf: first_leaf.get_output(0),
+        second_root: second_root.get_output(0),
+        second_leaf: second_leaf.get_output(0),
     }
 }
 
 fn single_chain_netlist() -> (
     Rc<Netlist<PrimitiveCell>>,
-    NetRef<PrimitiveCell>,
-    NetRef<PrimitiveCell>,
-    NetRef<PrimitiveCell>,
+    DrivenNet<PrimitiveCell>,
+    DrivenNet<PrimitiveCell>,
+    DrivenNet<PrimitiveCell>,
 ) {
     let netlist = Netlist::new("single_chain".to_string());
 
@@ -136,7 +141,12 @@ fn single_chain_netlist() -> (
         .unwrap();
     third.clone().expose_with_name("y".into());
 
-    (netlist, first, second, third)
+    (
+        netlist,
+        first.get_output(0),
+        second.get_output(0),
+        third.get_output(0),
+    )
 }
 
 #[test]
@@ -260,8 +270,11 @@ fn critical_path_stops_at_register_boundary() {
     let analysis = timing_analysis(&netlist);
     let path = get_critical_paths(&analysis, 1).into_iter().next().unwrap();
 
-    assert_eq!(path.path(), &[before_b, before_a]);
-    assert!(!path.path().contains(&reg));
+    assert_eq!(
+        path.path(),
+        &[before_b.get_output(0), before_a.get_output(0)]
+    );
+    assert!(!path.path().contains(&reg.get_output(0)));
 }
 
 #[test]
@@ -284,7 +297,7 @@ fn insert_delay_paths_maps_only_the_critical_region() {
         .filter_map(|node| node.get_var().map(|sym| sym.to_string()))
         .collect::<Vec<_>>();
 
-    assert_eq!(roots, vec![DrivenNet::from(&root)]);
+    assert_eq!(roots, vec![root.clone()]);
     assert!(vars.contains(&right.get_identifier().to_string()));
     assert!(!vars.contains(&root.get_identifier().to_string()));
     assert!(!vars.contains(&left.get_identifier().to_string()));

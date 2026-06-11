@@ -4,8 +4,8 @@
 
 */
 
+use safety_net::DrivenNet;
 use safety_net::Instantiable;
-use safety_net::NetRef;
 use safety_net::graph::CombDepthInfo;
 use std::collections::HashSet;
 
@@ -13,7 +13,7 @@ use std::collections::HashSet;
 /// A representative critical path ending at a timing endpoint.
 pub struct DelayPath<I: Instantiable> {
     /// The path from endpoint backward through critical fan-in.
-    path: Vec<NetRef<I>>,
+    path: Vec<DrivenNet<I>>,
 }
 
 impl<I: Instantiable> DelayPath<I> {
@@ -23,25 +23,29 @@ impl<I: Instantiable> DelayPath<I> {
     }
 
     /// The signal being driven by this path
-    pub fn endpoint(&self) -> NetRef<I> {
+    pub fn endpoint(&self) -> DrivenNet<I> {
         self.path[0].clone()
     }
 
     /// The nodes along the delay path as a slice
-    pub fn path(&self) -> &[NetRef<I>] {
+    pub fn path(&self) -> &[DrivenNet<I>] {
         &self.path
     }
     /// Expands and collects the transitive fan-in along the critical path provided by a branch factor of n.
-    pub fn expand_n_nodes(&self, n: usize) -> HashSet<NetRef<I>> {
-        let mut frontier: Vec<NetRef<I>> = self.path().to_vec();
-        let mut expanded_nodes: HashSet<NetRef<I>> = frontier.iter().cloned().collect();
+    pub fn expand_n_nodes(&self, n: usize) -> HashSet<DrivenNet<I>> {
+        let mut frontier: Vec<DrivenNet<I>> = self.path().to_vec();
+        let mut expanded_nodes: HashSet<DrivenNet<I>> = frontier.iter().cloned().collect();
 
         for _ in 0..n {
             let mut next_frontier = Vec::new();
 
-            for node in frontier {
-                for driver in node.drivers().flatten() {
-                    if expanded_nodes.insert(driver.clone()) {
+            for net in frontier {
+                let node = net.unwrap();
+
+                for input in node.inputs() {
+                    if let Some(driver) = input.get_driver()
+                        && expanded_nodes.insert(driver.clone())
+                    {
                         next_frontier.push(driver);
                     }
                 }
@@ -55,8 +59,8 @@ impl<I: Instantiable> DelayPath<I> {
 }
 
 impl<I: Instantiable> IntoIterator for DelayPath<I> {
-    type Item = NetRef<I>;
-    type IntoIter = std::vec::IntoIter<NetRef<I>>;
+    type Item = DrivenNet<I>;
+    type IntoIter = std::vec::IntoIter<DrivenNet<I>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.path.into_iter()
@@ -65,15 +69,15 @@ impl<I: Instantiable> IntoIterator for DelayPath<I> {
 
 fn build_path_from_endpoint<I: Instantiable>(
     analysis: &CombDepthInfo<'_, I>,
-    endpoint: NetRef<I>,
+    endpoint: DrivenNet<I>,
 ) -> Option<DelayPath<I>> {
     let mut path = Vec::new();
     let mut current = endpoint;
 
-    while let Some(crit) = analysis.get_crit_input(&current) {
+    while let Some(crit) = analysis.get_crit_input(&current.clone().unwrap()) {
         path.push(current.clone());
         if let Some(c) = crit.get_driver() {
-            current = c.unwrap();
+            current = c;
         } else {
             return None;
         }

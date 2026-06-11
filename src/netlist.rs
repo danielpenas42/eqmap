@@ -366,14 +366,10 @@ impl<'a, L: CircuitLang, I: Instantiable + LogicFunc<L> + 'static> LogicMapper<'
         for critical_path in &critical_paths {
             let endpoint = critical_path.endpoint();
             expanded_nodes.extend(critical_path.expand_n_nodes(branch_factor));
-            roots.push(DrivenNet::from(&endpoint));
+            roots.push(endpoint);
         }
 
-        self.insert_filtered(
-            roots,
-            move |d| expanded_nodes.contains(&d.clone().unwrap()),
-            |_| true,
-        )
+        self.insert_filtered(roots, move |d| expanded_nodes.contains(d), |_| true)
     }
 }
 
