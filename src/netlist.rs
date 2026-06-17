@@ -356,17 +356,18 @@ impl<'a, L: CircuitLang, I: Instantiable + LogicFunc<L> + 'static> LogicMapper<'
             ._netlist
             .get_analysis::<CombDepthInfo<_>>()
             .map_err(|e| e.to_string())?;
-        let critical_paths = get_critical_paths(&analysis, topk);
-        if critical_paths.is_empty() {
-            return Err("Critical paths are empty".to_string());
-        }
+
         let mut expanded_nodes = HashSet::new();
         let mut roots = Vec::new();
 
-        for critical_path in &critical_paths {
+        for critical_path in get_critical_paths(&analysis).take(topk) {
             let endpoint = critical_path.endpoint();
             expanded_nodes.extend(critical_path.expand_n_nodes(branch_factor));
             roots.push(endpoint);
+        }
+
+        if roots.is_empty() {
+            return Err("No critical endpoints found".to_string());
         }
 
         self.insert_filtered(roots, move |d| expanded_nodes.contains(d), |_| true)

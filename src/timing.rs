@@ -87,22 +87,12 @@ fn build_path_from_endpoint<I: Instantiable>(
     Some(DelayPath { path })
 }
 
-/// Gets up to `n` most critical paths.
+/// Build the critical paths along each critical endpoint
 pub fn get_critical_paths<I: Instantiable>(
     analysis: &CombDepthInfo<'_, I>,
-    n: usize,
-) -> Vec<DelayPath<I>> {
-    if analysis.get_max_depth().is_none() {
-        return Vec::new();
-    }
-
-    let mut vec = Vec::new();
-
-    for p in analysis.get_critical_points().into_iter().take(n) {
-        if let Some(path) = build_path_from_endpoint(analysis, p.clone()) {
-            vec.push(path);
-        }
-    }
-
-    vec
+) -> impl Iterator<Item = DelayPath<I>> {
+    analysis
+        .get_critical_points()
+        .into_iter()
+        .flat_map(|p| build_path_from_endpoint(analysis, p))
 }

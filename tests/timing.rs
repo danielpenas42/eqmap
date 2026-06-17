@@ -156,7 +156,7 @@ fn critical_path_uses_one_max_depth_branch() {
     let (netlist, root, left, _right) = reconvergent_netlist();
     let analysis = timing_analysis(&netlist);
 
-    let path = get_critical_paths(&analysis, 1).into_iter().next().unwrap();
+    let path = get_critical_paths(&analysis).next().unwrap();
 
     assert_eq!(path.endpoint(), root);
     assert_eq!(path.path(), &[root, left]);
@@ -166,7 +166,7 @@ fn critical_path_uses_one_max_depth_branch() {
 fn expansion_adds_neighboring_fanin_nodes() {
     let (netlist, _root, _left, right) = reconvergent_netlist();
     let analysis = timing_analysis(&netlist);
-    let path = get_critical_paths(&analysis, 1).into_iter().next().unwrap();
+    let path = get_critical_paths(&analysis).next().unwrap();
 
     let unexpanded = path.expand_n_nodes(0);
     let expanded = path.expand_n_nodes(1);
@@ -186,7 +186,7 @@ fn gets_multiple_critical_paths() {
     } = two_output_netlist();
     let analysis = timing_analysis(&netlist);
 
-    let paths = get_critical_paths(&analysis, 2);
+    let paths = get_critical_paths(&analysis).take(2).collect::<Vec<_>>();
 
     assert_eq!(paths.len(), 2);
     assert!(
@@ -202,34 +202,11 @@ fn gets_multiple_critical_paths() {
 }
 
 #[test]
-fn requesting_zero_critical_paths_returns_empty_result() {
-    let (netlist, _root, _left, _right) = reconvergent_netlist();
-    let analysis = timing_analysis(&netlist);
-
-    let paths = get_critical_paths(&analysis, 0);
-
-    assert!(paths.is_empty());
-}
-
-#[test]
 fn critical_paths_use_timing_endpoints_not_internal_chain_nodes() {
     let (netlist, first, second, third) = single_chain_netlist();
     let analysis = timing_analysis(&netlist);
 
-    let paths = get_critical_paths(&analysis, 3);
-    let debug_paths = paths
-        .iter()
-        .map(|path| {
-            path.path()
-                .iter()
-                .map(|net| net.get_identifier().to_string())
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>();
-    // if you run cargo test --test timing -- --nocapture --test-threads=1 u can see that it is printing 3 critical paths
-    // when there should only be one. This is becuase it is identifying as critical ends all the ndoes in the critical path
-    // this is I believe an issue with CombDepthInfo in safety net in the compute method
-    eprintln!("debug critical paths: {debug_paths:?}");
+    let paths = get_critical_paths(&analysis).collect::<Vec<_>>();
 
     assert_eq!(paths.len(), 1);
     assert_eq!(paths[0].endpoint(), third);
@@ -270,7 +247,7 @@ fn critical_path_stops_at_register_boundary() {
     after.expose_with_name("y".into());
 
     let analysis = timing_analysis(&netlist);
-    let path = get_critical_paths(&analysis, 1).into_iter().next().unwrap();
+    let path = get_critical_paths(&analysis).next().unwrap();
 
     assert_eq!(
         path.path(),
@@ -368,7 +345,7 @@ endmodule
     let ast = sv_parse_wrapper(verilog, None).unwrap();
     let netlist = from_vast::<PrimitiveCell>(&ast).unwrap();
     let analysis = timing_analysis(&netlist);
-    let critical_path = get_critical_paths(&analysis, 1).into_iter().next().unwrap();
+    let critical_path = get_critical_paths(&analysis).next().unwrap();
     let path_names = critical_path
         .path()
         .iter()
